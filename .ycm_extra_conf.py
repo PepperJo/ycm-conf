@@ -160,12 +160,12 @@ def FlagsForFile( filename, **kwargs ):
         # python list, but a "list-like" StringVec object
         compilation_info, src_file = \
                 GetCompilationInfoForFile( database, filename )
-        if not compilation_info or not src_file:
-           raise Exception("No compilation info")
-
-        final_flags = MakeRelativePathsInFlagsAbsolute(
-          compilation_info.compiler_flags_,
-          compilation_info.compiler_working_dir_ )
+        if not src_file:
+            src_file = filename
+        if compilation_info:
+            final_flags = MakeRelativePathsInFlagsAbsolute(
+              compilation_info.compiler_flags_,
+              compilation_info.compiler_working_dir_ )
 
         if os.path.isfile( cwd + "/Kbuild" ):
             KernelFlags(src_file, final_flags)
