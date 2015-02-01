@@ -20,6 +20,11 @@ Prereq: [YouCompleteMe][YCM]
 
 * For better autocompletion and diagonstics generate a compilation database in your project folder. The scripts looks for the `compilation_commands.json` file in the current working directory when a C-family file is opened (YCM doc for more info). You can generate compilation databases with [dcc][dcc], [Bear][BEAR] or the like.
 
+# Other useful stuff
+
+* [vim-compiledb-path][VIMDBPATH] to add include paths to vim and goto include under cursor with `gf`.
+
   [YCM]: https://github.com/Valloric/YouCompleteMe
   [BEAR]: https://github.com/rizsotto/Bear
   [dcc]: https://github.com/PepperJo/dcc
+  [VIMDBPATH]: https://github.com/martong/vim-compiledb-path
