@@ -152,10 +152,11 @@ def DefaultIncludes( filename, flags ):
     f.close()
 
 def FlagsForFile( filename, **kwargs ):
-    if kwargs['client_data'] is not None:
+    cwd = ""
+    try:
         cwd = str(kwargs['client_data']['getcwd()'])
-    else:
-        cwd = ""
+    except:
+        pass
     final_flags = []
     database = ycm_core.CompilationDatabase( cwd )
     if database:
