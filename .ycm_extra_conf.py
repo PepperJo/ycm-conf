@@ -145,7 +145,7 @@ def DefaultIncludes( filename, flags ):
             is_include_path = True
         elif is_include_path and line.startswith(' '):
             flags.append("-I")
-            flags.append(line[1:])
+            flags.append(line[1:-1])
         else:
             is_include_path = False
 
@@ -169,7 +169,7 @@ def FlagsForFile( filename, **kwargs ):
 
         if os.path.isfile( cwd + "/Kbuild" ):
             KernelFlags(src_file, final_flags)
-        else:
+        elif '-nostdinc' not in final_flags:
             DefaultIncludes(src_file, final_flags)
     else:
         DefaultIncludes(filename, final_flags)
