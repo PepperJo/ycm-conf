@@ -144,7 +144,7 @@ def DefaultIncludes( filename, flags ):
         if line.startswith("#include"):
             is_include_path = True
         elif is_include_path and line.startswith(' '):
-            flags.append("-I")
+            flags.append("-isystem")
             flags.append(line[1:-1])
         else:
             is_include_path = False
