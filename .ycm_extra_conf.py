@@ -92,9 +92,6 @@ def GetCompilationInfoForFile( database, filename ):
     return (database.GetCompilationInfoForFile( filename ), filename)
 
 def KernelFlags( filename, flags):
-    flags.append("-x")
-    flags.append("c")
-
     flags.append("-UCC_HAVE_ASM_GOTO")
 
     # remove flags that do not work with clang
@@ -113,9 +110,7 @@ def KernelFlags( filename, flags):
         except ValueError:
             pass
 
-
-def DefaultIncludes( filename, flags ):
-    # add std include paths
+def SourceLang( filename ):
     ext = os.path.splitext(filename)[-1]
     lang = []
 
@@ -127,11 +122,13 @@ def DefaultIncludes( filename, flags ):
         lang.append("-x")
         lang.append("c++")
 
-    flags += lang
+    return lang
+
+def DefaultIncludes( filename, flags ):
 
     f = open('/dev/null', 'rw')
     proc = subprocess.Popen(\
-            ["clang", "-v", "-E"] + lang + ["-"], \
+            ["clang", "-v", "-E"] + SourceLang(filename) + ["-"], \
             stdin = f, stderr = subprocess.PIPE, \
             stdout = f)
 
@@ -164,18 +161,19 @@ def FlagsForFile( filename, **kwargs ):
         # python list, but a "list-like" StringVec object
         compilation_info, src_file = \
                 GetCompilationInfoForFile( database, filename )
-        if not src_file:
-            src_file = filename
+        if src_file:
+            filename = src_file
         if compilation_info:
             final_flags = MakeRelativePathsInFlagsAbsolute(
               compilation_info.compiler_flags_,
               compilation_info.compiler_working_dir_ )
 
-        if os.path.isfile( cwd + "/Kbuild" ):
-            KernelFlags(src_file, final_flags)
-        elif '-nostdinc' not in final_flags:
-            DefaultIncludes(src_file, final_flags)
-    else:
+
+    final_flags += SourceLang(filename)
+    if os.path.isfile( cwd + "/Kbuild" ):
+        KernelFlags(filename, final_flags)
+    elif '-nostdinc' not in final_flags:
+        # this is only needed for filename completion
         DefaultIncludes(filename, final_flags)
 
     # NOTE: This is just for YouCompleteMe; it's highly likely that your project
