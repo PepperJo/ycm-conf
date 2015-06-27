@@ -110,7 +110,7 @@ def KernelFlags( filename, flags):
         except ValueError:
             pass
 
-def SourceLang( filename ):
+def SourceLang( filename, database):
     ext = os.path.splitext(filename)[-1]
     lang = []
 
@@ -118,9 +118,13 @@ def SourceLang( filename ):
     if ext in C_SOURCE_EXTENSIONS:
         lang.append("-x")
         lang.append("c")
+        if not database:
+            lang.append("-std=c11")
     else:
         lang.append("-x")
         lang.append("c++")
+        if not database:
+            lang.append("-std=c++11")
 
     return lang
 
@@ -128,7 +132,7 @@ def DefaultIncludes( filename, flags ):
 
     f = open('/dev/null', 'rw')
     proc = subprocess.Popen(\
-            ["clang", "-v", "-E"] + SourceLang(filename) + ["-"], \
+            ["clang", "-v", "-E"] + SourceLang(filename, False) + ["-"], \
             stdin = f, stderr = subprocess.PIPE, \
             stdout = f)
 
@@ -168,8 +172,7 @@ def FlagsForFile( filename, **kwargs ):
               compilation_info.compiler_flags_,
               compilation_info.compiler_working_dir_ )
 
-
-    final_flags += SourceLang(filename)
+    final_flags += SourceLang(filename, final_flags)
     if os.path.isfile( cwd + "/Kbuild" ):
         KernelFlags(filename, final_flags)
     elif '-nostdinc' not in final_flags:
