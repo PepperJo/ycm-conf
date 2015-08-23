@@ -33,128 +33,144 @@ import sys
 import subprocess
 import ycm_core
 
-C_SOURCE_EXTENSIONS = [ '.c' ]
-CXX_SOURCE_EXTENSIONS = [ '.cpp', '.cxx', '.cc' ]
+from collections import defaultdict
+
+C_SOURCE_EXTENSIONS = ['.c']
+CXX_SOURCE_EXTENSIONS = ['.cpp', '.cxx', '.cc']
 SOURCE_EXTENSIONS = C_SOURCE_EXTENSIONS + CXX_SOURCE_EXTENSIONS
-C_HEADER_EXTENSIONS = [ '.h' ]
-CXX_HEADER_EXTENSIONS = [ '.hxx', '.hpp' ]
+C_HEADER_EXTENSIONS = ['.h']
+CXX_HEADER_EXTENSIONS = ['.hxx', '.hpp']
 HEADER_EXTENSIONS = C_HEADER_EXTENSIONS + CXX_HEADER_EXTENSIONS
 
 
-def MakeRelativePathsInFlagsAbsolute( flags, working_directory ):
+def MakeRelativePathsInFlagsAbsolute(flags, working_directory):
     if not working_directory:
-        return list( flags )
+        return list(flags)
     new_flags = []
     make_next_absolute = False
-    path_flags = [ '-isystem', '-I', '-iquote', '--sysroot=' ]
+    path_flags = ['-isystem', '-I', '-iquote', '--sysroot=']
     for flag in flags:
         new_flag = flag
 
         if make_next_absolute:
             make_next_absolute = False
-            if not flag.startswith( '/' ):
-                new_flag = os.path.join( working_directory, flag )
+            if not flag.startswith('/'):
+                new_flag = os.path.join(working_directory, flag)
 
         for path_flag in path_flags:
             if flag == path_flag:
                 make_next_absolute = True
                 break
 
-            if flag.startswith( path_flag ):
-                path = flag[ len( path_flag ): ]
-                new_flag = path_flag + os.path.join( working_directory, path )
+            if flag.startswith(path_flag):
+                path = flag[len(path_flag):]
+                new_flag = path_flag + os.path.join(working_directory, path)
                 break
 
         if new_flag:
-            new_flags.append( new_flag )
+            new_flags.append(new_flag)
     return new_flags
 
 
-def IsHeaderFile( filename ):
-    extension = os.path.splitext( filename )[ 1 ]
+def IsHeaderFile(filename):
+    extension = os.path.splitext(filename)[1]
     return extension in HEADER_EXTENSIONS
 
-def ParseCMakeDependFile( cwd, dependfile, filename ):
+
+def ParseCMakeDependFile(cwd, dependfile, filename):
     f = open(dependfile, 'r')
-    depend_files = []
-    found = False
+    dependfiles = defaultdict(list)
+    objfiles = []
     for line in f:
         if not line.lstrip().startswith('#'):
             line_split = line.split(':')
             if len(line_split) == 2:
+                objfile = line_split[0]
                 df_relative = line_split[1].strip(' \n')
                 df = os.path.join(cwd, df_relative)
                 df = os.path.abspath(df)
                 if df == filename:
-                    found = True
-                elif os.path.splitext( df )[1] in SOURCE_EXTENSIONS:
-                    depend_files.append(df)
-    return depend_files if found else []
+                    objfiles.append(objfile)
+                elif os.path.splitext(df)[1] in SOURCE_EXTENSIONS:
+                    dependfiles[objfile].append(df)
+    for objfile in objfiles:
+        for df in dependfiles[objfile]:
+            yield df
 
-def GuessCompilationInfoForHeader( cwd, database, filename):
-    replacement_files = []
-    cmakefiles = os.path.join( cwd, 'CMakeFiles' )
-    if os.path.isdir( cmakefiles ):
-        for subdir, dirs, files in os.walk( cmakefiles ):
+
+def CMakeDependFilePath(cwd):
+    cmakefiles = os.path.join(cwd, 'CMakeFiles')
+    if os.path.isdir(cmakefiles):
+        for subdir, dirs, files in os.walk(cmakefiles):
             for d in dirs:
-                ext = os.path.splitext( d )[1]
+                ext = os.path.splitext(d)[1]
                 if ext == '.dir':
-                    dependfile = os.path.join( cmakefiles, d, 'depend.make' )
-                    if os.path.isfile( dependfile ):
-                        replacement_files.extend( ParseCMakeDependFile( cwd,
-                            dependfile, filename ) )
+                    dependfile = os.path.join(cmakefiles, d, 'depend.make')
+                    if os.path.isfile(dependfile):
+                        yield dependfile
 
-    basename = os.path.splitext( filename )[ 0 ]
-    for extension in SOURCE_EXTENSIONS:
-        replacement_files.append(basename + extension)
 
-    for replacement_file in replacement_files:
-        if os.path.isfile( replacement_file ):
+def GuessCompilationInfoForHeader(cwd, database, filename):
+    for dependfile in CMakeDependFilePath(cwd):
+        for replacement_file in ParseCMakeDependFile(cwd,
+                                                     dependfile, filename):
             compilation_info = database.GetCompilationInfoForFile(
-                replacement_file )
+                replacement_file)
+            if compilation_info.compiler_flags_:
+                return (compilation_info, replacement_file)
+
+    basename = os.path.splitext(filename)[0]
+    for extension in SOURCE_EXTENSIONS:
+        replacement_file = basename + extension
+        if os.path.isfile(replacement_file):
+            compilation_info = database.GetCompilationInfoForFile(
+                replacement_file)
             if compilation_info.compiler_flags_:
                 return (compilation_info, replacement_file)
     return (None, None)
 
-def GetCompilationInfoForFile( cwd, filename ):
-    database = ycm_core.CompilationDatabase( cwd )
+
+def GetCompilationInfoForFile(cwd, filename):
+    database = ycm_core.CompilationDatabase(cwd)
     final_flags = []
     if database:
-        if IsHeaderFile( filename ):
+        if IsHeaderFile(filename):
             compilation_info, src_file = GuessCompilationInfoForHeader(
-                    cwd, database, filename )
+                cwd, database, filename)
             if src_file:
                 filename = src_file
         else:
-            compilation_info = database.GetCompilationInfoForFile( filename )
+            compilation_info = database.GetCompilationInfoForFile(filename)
 
         if compilation_info:
             final_flags = MakeRelativePathsInFlagsAbsolute(
-              compilation_info.compiler_flags_,
-              compilation_info.compiler_working_dir_ )
+                compilation_info.compiler_flags_,
+                compilation_info.compiler_working_dir_)
 
-    return (filename, final_flags)
+            return (filename, final_flags)
 
-def KernelFlags( filename, flags):
+
+def KernelFlags(filename, flags):
     flags.append("-UCC_HAVE_ASM_GOTO")
 
     # remove flags that do not work with clang
     to_remove = [
-            { '-mno-80387' },
-            { '-mno-fp-ret-in-387' },
-            { '-maccumulate-outgoing-args' },
-            { '-fno-delete-null-pointer-checks' },
-            { '-fno-var-tracking-assignments' },
-            { '-mfentry' },
-            { '-fconserve-stack' },
-        ]
+        {'-mno-80387'},
+        {'-mno-fp-ret-in-387'},
+        {'-maccumulate-outgoing-args'},
+        {'-fno-delete-null-pointer-checks'},
+        {'-fno-var-tracking-assignments'},
+        {'-mfentry'},
+        {'-fconserve-stack'},
+    ]
     for flag in to_remove:
         try:
             flags.remove(flag)
         except ValueError:
             pass
 
-def SourceLang( filename, database):
+
+def SourceLang(filename, database):
     ext = os.path.splitext(filename)[-1]
     lang = []
 
@@ -172,13 +188,14 @@ def SourceLang( filename, database):
 
     return lang
 
-def DefaultIncludes( filename, flags ):
+
+def DefaultIncludes(filename, flags):
 
     f = open('/dev/null', 'rw')
-    proc = subprocess.Popen(\
-            ["clang", "-v", "-E"] + SourceLang(filename, False) + ["-"], \
-            stdin = f, stderr = subprocess.PIPE, \
-            stdout = f)
+    proc = subprocess.Popen(
+        ["clang", "-v", "-E"] + SourceLang(filename, False) + ["-"],
+        stdin=f, stderr=subprocess.PIPE,
+        stdout=f)
 
     is_include_path = False
     while True:
@@ -196,15 +213,16 @@ def DefaultIncludes( filename, flags ):
 
     f.close()
 
-def FlagsForFile( filename, **kwargs ):
+
+def FlagsForFile(filename, **kwargs):
     cwd = ""
     try:
         cwd = str(kwargs['client_data']['getcwd()'])
     except:
         pass
-    filename, final_flags = GetCompilationInfoForFile( cwd, filename )
-    final_flags.extend( SourceLang(filename, final_flags) )
-    if os.path.isfile( os.path.join(cwd, 'Kbuild' ) ):
+    filename, final_flags = GetCompilationInfoForFile(cwd, filename)
+    final_flags.extend(SourceLang(filename, final_flags))
+    if os.path.isfile(os.path.join(cwd, 'Kbuild')):
         KernelFlags(filename, final_flags)
     elif '-nostdinc' not in final_flags:
         # this is only needed for filename completion
@@ -214,7 +232,7 @@ def FlagsForFile( filename, **kwargs ):
     # does NOT need to remove the stdlib flag. DO NOT USE THIS IN YOUR
     # ycm_extra_conf IF YOU'RE NOT 100% SURE YOU NEED IT.
     try:
-        final_flags.remove( '-stdlib=libc++' )
+        final_flags.remove('-stdlib=libc++')
     except ValueError:
         pass
 
