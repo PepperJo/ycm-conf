@@ -99,23 +99,18 @@ def ParseCMakeDependFile(cwd, dependfile, filename):
 
 
 def CMakeDependFilePath(cwd):
-    cmakefiles = os.path.join(cwd, 'CMakeFiles')
-    if os.path.isdir(cmakefiles):
-        for subdir, dirs, files in os.walk(cmakefiles):
-            for d in dirs:
-                ext = os.path.splitext(d)[1]
-                if ext == '.dir':
-                    dependfile = os.path.join(cmakefiles, d, 'depend.make')
-                    if os.path.isfile(dependfile):
-                        yield dependfile
+    for dirpath, dirnames, filenames in os.walk(cwd):
+        for filename in filenames:
+            if filename == 'depend.make':
+                yield os.path.join(dirpath, filename)
 
 
 def GuessCompilationInfoForHeader(cwd, database, filename):
     for dependfile in CMakeDependFilePath(cwd):
         for replacement_file in ParseCMakeDependFile(cwd,
-                                                     dependfile, filename):
+                dependfile, filename):
             compilation_info = database.GetCompilationInfoForFile(
-                replacement_file)
+                    replacement_file)
             if compilation_info.compiler_flags_:
                 return (compilation_info, replacement_file)
 
@@ -124,7 +119,7 @@ def GuessCompilationInfoForHeader(cwd, database, filename):
         replacement_file = basename + extension
         if os.path.isfile(replacement_file):
             compilation_info = database.GetCompilationInfoForFile(
-                replacement_file)
+                    replacement_file)
             if compilation_info.compiler_flags_:
                 return (compilation_info, replacement_file)
     return (None, None)
@@ -132,11 +127,10 @@ def GuessCompilationInfoForHeader(cwd, database, filename):
 
 def GetCompilationInfoForFile(cwd, filename):
     database = ycm_core.CompilationDatabase(cwd)
-    final_flags = []
     if database:
         if IsHeaderFile(filename):
             compilation_info, src_file = GuessCompilationInfoForHeader(
-                cwd, database, filename)
+                    cwd, database, filename)
             if src_file:
                 filename = src_file
         else:
@@ -144,10 +138,10 @@ def GetCompilationInfoForFile(cwd, filename):
 
         if compilation_info:
             final_flags = MakeRelativePathsInFlagsAbsolute(
-                compilation_info.compiler_flags_,
-                compilation_info.compiler_working_dir_)
-
+                    compilation_info.compiler_flags_,
+                    compilation_info.compiler_working_dir_)
             return (filename, final_flags)
+    return (filename, [])
 
 
 def KernelFlags(filename, flags):
@@ -155,14 +149,14 @@ def KernelFlags(filename, flags):
 
     # remove flags that do not work with clang
     to_remove = [
-        {'-mno-80387'},
-        {'-mno-fp-ret-in-387'},
-        {'-maccumulate-outgoing-args'},
-        {'-fno-delete-null-pointer-checks'},
-        {'-fno-var-tracking-assignments'},
-        {'-mfentry'},
-        {'-fconserve-stack'},
-    ]
+            {'-mno-80387'},
+            {'-mno-fp-ret-in-387'},
+            {'-maccumulate-outgoing-args'},
+            {'-fno-delete-null-pointer-checks'},
+            {'-fno-var-tracking-assignments'},
+            {'-mfentry'},
+            {'-fconserve-stack'},
+            ]
     for flag in to_remove:
         try:
             flags.remove(flag)
@@ -193,9 +187,9 @@ def DefaultIncludes(filename, flags):
 
     f = open('/dev/null', 'rw')
     proc = subprocess.Popen(
-        ["clang", "-v", "-E"] + SourceLang(filename, False) + ["-"],
-        stdin=f, stderr=subprocess.PIPE,
-        stdout=f)
+            ["clang", "-v", "-E"] + SourceLang(filename, False) + ["-"],
+            stdin=f, stderr=subprocess.PIPE,
+            stdout=f)
 
     is_include_path = False
     while True:
@@ -237,6 +231,6 @@ def FlagsForFile(filename, **kwargs):
         pass
 
     return {
-        'flags': final_flags,
-        'do_cache': True
-    }
+            'flags': final_flags,
+            'do_cache': True
+            }
