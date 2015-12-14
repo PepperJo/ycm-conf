@@ -28,12 +28,14 @@
 #
 # For more information, please refer to <http://unlicense.org/>
 
+import re
 import os
 import sys
 import subprocess
 import ycm_core
 
 from collections import defaultdict
+from sets import Set
 
 C_SOURCE_EXTENSIONS = ['.c']
 CXX_SOURCE_EXTENSIONS = ['.cpp', '.cxx', '.cc']
@@ -41,7 +43,6 @@ SOURCE_EXTENSIONS = C_SOURCE_EXTENSIONS + CXX_SOURCE_EXTENSIONS
 C_HEADER_EXTENSIONS = ['.h']
 CXX_HEADER_EXTENSIONS = ['.hxx', '.hpp']
 HEADER_EXTENSIONS = C_HEADER_EXTENSIONS + CXX_HEADER_EXTENSIONS
-
 
 def MakeRelativePathsInFlagsAbsolute(flags, working_directory):
     if not working_directory:
@@ -182,15 +183,19 @@ def SourceLang(filename, database):
 
     return lang
 
-
 def DefaultIncludes(filename, flags):
-
+    lang = SourceLang(filename, False)
+    lang_key = lang[1]
+    if lang_key in DefaultIncludes.flags:
+        flags.extend(DefaultIncludes.flags[lang_key])
+        return
     f = open('/dev/null', 'rw')
     proc = subprocess.Popen(
-            ["clang", "-v", "-E"] + SourceLang(filename, False) + ["-"],
+            ["clang", "-v", "-E"] + lang + ["-"],
             stdin=f, stderr=subprocess.PIPE,
             stdout=f)
 
+    lang_flags = []
     is_include_path = False
     while True:
         line = proc.stderr.readline()
@@ -200,21 +205,58 @@ def DefaultIncludes(filename, flags):
         if line.startswith("#include"):
             is_include_path = True
         elif is_include_path and line.startswith(' '):
-            flags.append("-isystem")
-            flags.append(line[1:-1])
+            lang_flags.append("-isystem")
+            lang_flags.append(line[1:-1])
         else:
             is_include_path = False
 
+    DefaultIncludes.flags[lang_key] = lang_flags
+    flags.extend(lang_flags)
     f.close()
+DefaultIncludes.flags = dict()
 
+# def GuessIncludePath(filename, flags, cwd, explore):
+#     f = open(filename, 'r')
+#     includes=[]
+#     for line in f:
+#         m = re.search('^ *#include *(<|")(.*)(>|")', line)
+#         if m:
+#             includes.append(m.group(2))
+#
+#     explore = [e if os.path.isabs(e) else os.path.abspath(os.path.join(cwd,e)) for e in explore]
+#
+#     abs_includes = Set()
+#     for e in explore:
+#         for dirpath, dirnames, filenames in os.walk(e):
+#             if dirpath != e and dirpath in explore:
+#                 # we already searched this one before!
+#                 continue
+#             for filename in filenames:
+#                 for include in includes:
+#                     if os.path.join(dirpath,filename).endswith(include):
+#                         include_dirname = os.path.dirname(include)
+#                         if include_dirname:
+#                             abs_includes.add(dirpath[:-len(include_dirname) - 1])
+#                         else:
+#                             abs_includes.add(dirpath)
+#     for abs_include in abs_includes:
+#         flags.append('-I' + abs_include)
+#
+#     f.close()
 
 def FlagsForFile(filename, **kwargs):
     cwd = ""
     try:
-        cwd = str(kwargs['client_data']['getcwd()'])
+        args = kwargs['client_data']
+        cwd = str(args['g:ycm_extra_conf_vim_data_root_dir'])
+        explore = list(args['g:ycm_extra_conf_vim_data_explore'])
     except:
         pass
     filename, final_flags = GetCompilationInfoForFile(cwd, filename)
+    # if not final_flags:
+    #     # we did not find any compilation database
+    #     # now we start to guess include paths
+    #    GuessIncludePath(filename, final_flags, cwd, explore)
     final_flags.extend(SourceLang(filename, final_flags))
     if os.path.isfile(os.path.join(cwd, 'Kbuild')):
         KernelFlags(filename, final_flags)
