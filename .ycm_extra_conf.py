@@ -245,10 +245,15 @@ def GuessIncludePath(filename, flags, cwd):
                 longest_prefix = inc_path
         flags.append('-I' + os.path.dirname(longest_prefix))
 
+def FlagsForFile(filename, **kwargs):
+    cwd = ""
+    try:
+        args = kwargs['client_data']
+        cwd = str(args['g:ycm_extra_conf_vim_data_root_dir'])
+        explore = list(args['g:ycm_extra_conf_vim_data_explore'])
+    except:
+        pass
 
-if __name__ == "__main__":
-    filename = sys.argv[1]
-    cwd = sys.argv[2]
     filename, final_flags = GetCompilationInfoForFile(cwd, filename)
     if not final_flags:
         # we did not find any compilation database
@@ -270,7 +275,7 @@ if __name__ == "__main__":
         pass
 
     print(final_flags)
-    # return {
-    #         'flags': final_flags,
-    #         'do_cache': True
-    #         }
+    return {
+            'flags': final_flags,
+            'do_cache': True
+            }
