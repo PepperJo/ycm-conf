@@ -184,18 +184,12 @@ def SourceLang(filename, database):
     return lang
 
 def DefaultIncludes(filename, flags):
-    lang = SourceLang(filename, False)
-    lang_key = lang[1]
-    if lang_key in DefaultIncludes.flags:
-        flags.extend(DefaultIncludes.flags[lang_key])
-        return
     f = open('/dev/null', 'rw')
     proc = subprocess.Popen(
-            ["clang", "-v", "-E"] + lang + ["-"],
+            ["clang", "-v", "-E"] + SourceLang(filename, False) + ["-"],
             stdin=f, stderr=subprocess.PIPE,
             stdout=f)
 
-    lang_flags = []
     is_include_path = False
     while True:
         line = proc.stderr.readline()
@@ -205,58 +199,58 @@ def DefaultIncludes(filename, flags):
         if line.startswith("#include"):
             is_include_path = True
         elif is_include_path and line.startswith(' '):
-            lang_flags.append("-isystem")
-            lang_flags.append(line[1:-1])
+            flags.append("-isystem")
+            flags.append(line[1:-1])
         else:
             is_include_path = False
 
-    DefaultIncludes.flags[lang_key] = lang_flags
-    flags.extend(lang_flags)
     f.close()
-DefaultIncludes.flags = dict()
 
-# def GuessIncludePath(filename, flags, cwd, explore):
-#     f = open(filename, 'r')
-#     includes=[]
-#     for line in f:
-#         m = re.search('^ *#include *(<|")(.*)(>|")', line)
-#         if m:
-#             includes.append(m.group(2))
-#
-#     explore = [e if os.path.isabs(e) else os.path.abspath(os.path.join(cwd,e)) for e in explore]
-#
-#     abs_includes = Set()
-#     for e in explore:
-#         for dirpath, dirnames, filenames in os.walk(e):
-#             if dirpath != e and dirpath in explore:
-#                 # we already searched this one before!
-#                 continue
-#             for filename in filenames:
-#                 for include in includes:
-#                     if os.path.join(dirpath,filename).endswith(include):
-#                         include_dirname = os.path.dirname(include)
-#                         if include_dirname:
-#                             abs_includes.add(dirpath[:-len(include_dirname) - 1])
-#                         else:
-#                             abs_includes.add(dirpath)
-#     for abs_include in abs_includes:
-#         flags.append('-I' + abs_include)
-#
-#     f.close()
+def GuessIncludePath(filename, flags, cwd):
+    f = open(filename, 'r')
+    includes=[]
+    for line in f:
+        m = re.search('^ *#include *(<|")(.*\..{1,3})(>|")', line)
+        if m:
+            includes.append(m.group(2))
+    f.close()
+    print(includes)
 
-def FlagsForFile(filename, **kwargs):
-    cwd = ""
-    try:
-        args = kwargs['client_data']
-        cwd = str(args['g:ycm_extra_conf_vim_data_root_dir'])
-        explore = list(args['g:ycm_extra_conf_vim_data_explore'])
-    except:
-        pass
+    search_path = os.path.abspath(cwd + "../..")
+    inc_regex = "\("
+    for include in includes:
+        inc_regex += include + "\|"
+    inc_regex = inc_regex[:-2]
+    inc_regex += "\)"
+    # print(inc_regex)
+    # subprocess.check_output(["locate", "-r" , "^" + search_path + "/.*/" + inc_regex + "$"])
+    inc_paths = subprocess.check_output(['locate', '-r' , '/' + inc_regex + '$']).split('\n')
+    explore = os.path.abspath(cwd + '../../../')
+    inc_set = dict()
+    for inc_path in inc_paths:
+        m = re.search('^' + explore + '.*', inc_path)
+        if m:
+            for include in includes:
+                if inc_path.endswith(include):
+                    if include not in inc_set:
+                        inc_set[include] = []
+                    inc_set[include].append(inc_path)
+    # print(inc_set)
+    # for inc_path in inc_paths:
+    #     m = re.search('^' + explore + '.*', inc_path)
+    #     if m:
+    #         flags.append('-I')
+    #         flags.append(os.path.dirname(inc_path))
+
+
+if __name__ == "__main__":
+    filename = sys.argv[1]
+    cwd = sys.argv[2]
     filename, final_flags = GetCompilationInfoForFile(cwd, filename)
-    # if not final_flags:
-    #     # we did not find any compilation database
-    #     # now we start to guess include paths
-    #    GuessIncludePath(filename, final_flags, cwd, explore)
+    if not final_flags:
+        # we did not find any compilation database
+        # now we start to guess include paths
+       GuessIncludePath(filename, final_flags, cwd)
     final_flags.extend(SourceLang(filename, final_flags))
     if os.path.isfile(os.path.join(cwd, 'Kbuild')):
         KernelFlags(filename, final_flags)
@@ -272,7 +266,8 @@ def FlagsForFile(filename, **kwargs):
     except ValueError:
         pass
 
-    return {
-            'flags': final_flags,
-            'do_cache': True
-            }
+    print(final_flags)
+    # return {
+    #         'flags': final_flags,
+    #         'do_cache': True
+    #         }
