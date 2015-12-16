@@ -214,33 +214,36 @@ def GuessIncludePath(filename, flags, cwd):
         if m:
             includes.append(m.group(2))
     f.close()
-    print(includes)
 
     search_path = os.path.abspath(cwd + "../..")
-    inc_regex = "\("
+    inc_regex = "("
     for include in includes:
-        inc_regex += include + "\|"
-    inc_regex = inc_regex[:-2]
-    inc_regex += "\)"
-    # print(inc_regex)
-    # subprocess.check_output(["locate", "-r" , "^" + search_path + "/.*/" + inc_regex + "$"])
-    inc_paths = subprocess.check_output(['locate', '-r' , '/' + inc_regex + '$']).split('\n')
+        include = include.replace('.', '\\\.')
+        inc_regex += include + "|"
+    inc_regex = inc_regex[:-1]
+    inc_regex += ")"
+
+    query = 'SELECT ?url WHERE { ?x nie:url ?url . FILTER regex(?url, "^file://%s/.*%s$") }'
     explore = os.path.abspath(cwd + '../../../')
+    output = subprocess.check_output(['tracker', 'sparql', '-q' , query % (explore, inc_regex)]).split('\n')[1:-2]
     inc_set = dict()
-    for inc_path in inc_paths:
-        m = re.search('^' + explore + '.*', inc_path)
-        if m:
-            for include in includes:
-                if inc_path.endswith(include):
-                    if include not in inc_set:
-                        inc_set[include] = []
-                    inc_set[include].append(inc_path)
-    # print(inc_set)
-    # for inc_path in inc_paths:
-    #     m = re.search('^' + explore + '.*', inc_path)
-    #     if m:
-    #         flags.append('-I')
-    #         flags.append(os.path.dirname(inc_path))
+    for inc_path in output:
+        inc_path = inc_path.lstrip()
+        for include in includes:
+            if inc_path.endswith(include):
+                if include not in inc_set:
+                    inc_set[include] = []
+                inc_set[include].append(inc_path[7:])
+
+    for include, inc_paths in inc_set.iteritems():
+        m = 0
+        longest_prefix = ""
+        for inc_path in inc_paths:
+            l = len(os.path.commonprefix([inc_path, cwd]))
+            if l > m:
+                m = l
+                longest_prefix = inc_path
+        flags.append('-I' + os.path.dirname(longest_prefix))
 
 
 if __name__ == "__main__":
