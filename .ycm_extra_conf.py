@@ -249,10 +249,10 @@ def FlagsForFile(filename, **kwargs):
         pass
 
     filename, final_flags = GetCompilationInfoForFile(cwd, filename)
-    if not final_flags:
-        # we did not find any compilation database
-        # let's start guessing include paths
-       GuessIncludePath(filename, final_flags, cwd, explore)
+    # if not final_flags:
+    #     # we did not find any compilation database
+    #     # let's start guessing include paths
+    #    GuessIncludePath(filename, final_flags, cwd, explore)
 
     final_flags.extend(SourceLang(filename, final_flags))
     if os.path.isfile(os.path.join(cwd, 'Kbuild')):
